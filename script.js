@@ -28,7 +28,7 @@ function hideLoading() {
   document.getElementById('loading').style.display = 'none';
 }
 
-function loadProtein() {
+window.function loadProtein() {
   clearError();
   const pdbId = document.getElementById('pdbCode').value.trim();
   
