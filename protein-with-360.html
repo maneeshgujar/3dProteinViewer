@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Protein Viewer</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background-color: #000;
+      color: #fff;
+    }
+    #title {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 24px;
+      z-index: 10;
+    }
+    #viewer {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 50vw;
+      height: 80vh;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+      background-color: rgba(0, 0, 0, 0.3);
+      z-index: 5;
+    }
+    #pdbInput {
+      position: absolute;
+      top: 30px;
+      left: 38%;
+      z-index: 10;
+      background-color: rgba(0, 0, 0, 0.8);
+      padding: 10px;
+      border-radius: 5px;
+    }
+    input[type="text"] {
+      padding: 5px;
+      border: none;
+      border-radius: 3px;
+    }
+    button {
+      padding: 5px 10px;
+      margin-left: 10px;
+      border: none;
+      background-color: #7fc758;
+      color: #fff;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #00ff55;
+    }
+    .error-message {
+      text-align: center;
+      color: #ff4d4d;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 18px;
+      color: #fff;
+      z-index: 20;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="pdbInput">
+    <label for="pdbCode">Enter PDB Code:</label>
+    <input type="text" id="pdbCode" placeholder="e.g., 1MH1">
+    <button onclick="loadProtein()">Load Protein</button>
+    <div id="errorMessage" class="error-message"></div>
+  </div>
+  <div id="viewer"></div>
+  <div id="loading">Loading...</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.140.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.140.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.140.0/examples/jsm/webxr/VRButton.js"></script>
+  <script src="https://3dmol.csb.pitt.edu/build/3Dmol-min.js"></script>
+
+  <script>
+    let viewer;
+
+    // Set up the 3Dmol viewer
+    function initViewer() {
+      viewer = $3Dmol.createViewer('viewer', {
+        defaultcolors: $3Dmol.rasmolElementColors,
+        backgroundColor: 'transparent'
+      });
+    }
+
+    function showError(message) {
+      const errorMessage = document.getElementById('errorMessage');
+      errorMessage.textContent = message;
+    }
+
+    function clearError() {
+      const errorMessage = document.getElementById('errorMessage');
+      errorMessage.textContent = '';
+    }
+
+    function showLoading() {
+      document.getElementById('loading').style.display = 'block';
+    }
+
+    function hideLoading() {
+      document.getElementById('loading').style.display = 'none';
+    }
+
+    function loadProtein() {
+      clearError();
+      const pdbId = document.getElementById('pdbCode').value.trim();
+      
+      if (pdbId === '') {
+        showError('Please enter a PDB code.');
+        return;
+      }
+
+      showLoading();
+
+      const url = `https://files.rcsb.org/view/${pdbId}.pdb`;
+
+      fetch(url)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Invalid PDB code or error fetching PDB file.');
+          }
+          return response.text();
+        })
+        .then(pdbData => {
+          viewer.clear();
+          viewer.addModel(pdbData, 'pdb');
+          viewer.setStyle({}, {
+            cartoon: {color: 'spectrum'},
+          });
+          viewer.zoomTo();
+          viewer.render();
+        })
+        .catch(error => showError(error.message))
+        .finally(() => hideLoading());
+    }
+
+    // Set up the 360-degree panorama using THREE.js
+    function initPanorama() {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.xr.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      const geometry = new THREE.SphereGeometry(500, 60, 40);
+      geometry.scale(-1, 1, 1);
+
+      // Load a panoramic image (replace 'panorama.jpg' with your image path)
+      const texture = new THREE.TextureLoader().load('panorama.jpg');
+      const material = new THREE.MeshBasicMaterial({ map: texture });
+      const sphere = new THREE.Mesh(geometry, material);
+      scene.add(sphere);
+
+      // Set up OrbitControls for navigation
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      camera.position.set(0, 0, 0.1);
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      animate();
+
+      // Add the VR Button to the DOM
+      document.body.appendChild(VRButton.createButton(renderer));
+
+      // Resize handling
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+
+    // Trigger loadProtein on Enter key press
+    document.getElementById('pdbCode').addEventListener('keypress', function(event) {
+      if (event.key === 'Enter') {
+        loadProtein();
+      }
+    });
+
+    // Initialize everything
+    function init() {
+      initViewer();
+      initPanorama();
+    }
+
+    init();
+  </script>
+</body>
+</html>
