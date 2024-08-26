@@ -28,7 +28,7 @@ function hideLoading() {
   document.getElementById('loading').style.display = 'none';
 }
 
-window.function loadProtein() {
+function loadProtein() {
   clearError();
   const pdbId = document.getElementById('pdbCode').value.trim();
   
@@ -108,6 +108,8 @@ document.getElementById('pdbCode').addEventListener('keypress', function(event) 
     loadProtein();
   }
 });
+
+document.getElementById('loadProteinButton').addEventListener('click', loadProtein);
 
 // Initialize everything
 function init() {
